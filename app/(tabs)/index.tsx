@@ -1,98 +1,365 @@
-import { Image } from 'expo-image';
-import { Platform, StyleSheet } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Haptics from 'expo-haptics';
+import { Href, useRouter } from 'expo-router';
+import React, { useEffect, useState } from 'react';
+import {
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 
-import { HelloWave } from '@/components/hello-wave';
-import ParallaxScrollView from '@/components/parallax-scroll-view';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { Link } from 'expo-router';
+type Team = 'turkis' | 'oransje' | 'grønn' | 'svart' | 'rød' | 'blå';
 
-export default function HomeScreen() {
+interface TeamConfig {
+  name: string;
+  color: string;
+}
+
+const ALL_TEAMS: Record<Team, TeamConfig> = {
+  turkis: { name: 'Turkis', color: '#06b6d4' },
+  oransje: { name: 'Oransje', color: '#f97316' },
+  grønn: { name: 'Grønn', color: '#22c55e' },
+  svart: { name: 'Svart', color: '#1f2937' },
+  rød: { name: 'Rød', color: '#ef4444' },
+  blå: { name: 'Blå', color: '#3b82f6' },
+};
+
+export default function HomePage() {
+  const [selectedTeams, setSelectedTeams] = useState<Team[]>([]);
+  const [recentMatches, setRecentMatches] = useState<any[]>([]);
+  const router = useRouter();
+
+  useEffect(() => {
+    loadSelectedTeams();
+    loadRecentMatches();
+  }, []);
+
+  const loadSelectedTeams = async () => {
+    try {
+      const saved = await AsyncStorage.getItem('active_teams');
+      if (saved) {
+        setSelectedTeams(JSON.parse(saved));
+      } else {
+        // Default til 4 første lag
+        setSelectedTeams(['turkis', 'oransje', 'grønn', 'svart']);
+      }
+    } catch (error) {
+      console.error('Kunne ikke laste lag:', error);
+    }
+  };
+
+  const loadRecentMatches = async () => {
+    try {
+      const saved = await AsyncStorage.getItem('match_history');
+      if (saved) {
+        const history = JSON.parse(saved);
+        setRecentMatches(history.slice(0, 3));
+      }
+    } catch (error) {
+      console.error('Kunne ikke laste historikk:', error);
+    }
+  };
+
+  const toggleTeam = async (team: Team) => {
+    let newTeams: Team[];
+    
+    if (selectedTeams.includes(team)) {
+      if (selectedTeams.length <= 2) {
+        return; // Må ha minst 2 lag
+      }
+      newTeams = selectedTeams.filter(t => t !== team);
+    } else {
+      newTeams = [...selectedTeams, team];
+    }
+    
+    setSelectedTeams(newTeams);
+    await AsyncStorage.setItem('active_teams', JSON.stringify(newTeams));
+    
+    if (Platform.OS === 'ios') {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+  };
+
+  const handleStartGame = () => {
+    if (selectedTeams.length < 2) return;
+    
+    if (Platform.OS === 'ios') {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    }
+    
+    router.push('/(tabs)/spill' as Href);
+  };
+
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    const today = new Date();
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+    
+    if (date.toDateString() === today.toDateString()) {
+      return 'I dag';
+    } else if (date.toDateString() === yesterday.toDateString()) {
+      return 'I går';
+    } else {
+      return date.toLocaleDateString('nb-NO', { day: 'numeric', month: 'short' });
+    }
+  };
+
   return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
-      headerImage={
-        <Image
-          source={require('@/assets/images/partial-react-logo.png')}
-          style={styles.reactLogo}
-        />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Welcome!</ThemedText>
-        <HelloWave />
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
-          Edit <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> to see changes.
-          Press{' '}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({
-              ios: 'cmd + d',
-              android: 'cmd + m',
-              web: 'F12',
+    <ScrollView style={styles.container}>
+      <View style={styles.content}>
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Hvilke lag spiller i dag?</Text>
+          <Text style={styles.sectionSubtitle}>
+            Velg minst 2 lag • {selectedTeams.length} valgt
+          </Text>
+          
+          <View style={styles.teamGrid}>
+            {(Object.keys(ALL_TEAMS) as Team[]).map((team) => {
+              const isSelected = selectedTeams.includes(team);
+              return (
+                <TouchableOpacity
+                  key={team}
+                  style={[
+                    styles.teamCard,
+                    { backgroundColor: ALL_TEAMS[team].color },
+                    !isSelected && styles.teamCardInactive,
+                  ]}
+                  onPress={() => toggleTeam(team)}
+                  activeOpacity={0.8}
+                >
+                  <Text style={[
+                    styles.teamCardText,
+                    !isSelected && styles.teamCardTextInactive
+                  ]}>
+                    {ALL_TEAMS[team].name}
+                  </Text>
+                  {isSelected && (
+                    <View style={styles.checkmark}>
+                      <Text style={styles.checkmarkText}>✓</Text>
+                    </View>
+                  )}
+                </TouchableOpacity>
+              );
             })}
-          </ThemedText>{' '}
-          to open developer tools.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <Link href="/modal">
-          <Link.Trigger>
-            <ThemedText type="subtitle">Step 2: Explore</ThemedText>
-          </Link.Trigger>
-          <Link.Preview />
-          <Link.Menu>
-            <Link.MenuAction title="Action" icon="cube" onPress={() => alert('Action pressed')} />
-            <Link.MenuAction
-              title="Share"
-              icon="square.and.arrow.up"
-              onPress={() => alert('Share pressed')}
-            />
-            <Link.Menu title="More" icon="ellipsis">
-              <Link.MenuAction
-                title="Delete"
-                icon="trash"
-                destructive
-                onPress={() => alert('Delete pressed')}
-              />
-            </Link.Menu>
-          </Link.Menu>
-        </Link>
+          </View>
 
-        <ThemedText>
-          {`Tap the Explore tab to learn more about what's included in this starter app.`}
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          {`When you're ready, run `}
-          <ThemedText type="defaultSemiBold">npm run reset-project</ThemedText> to get a fresh{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> directory. This will move the current{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{' '}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
-        </ThemedText>
-      </ThemedView>
-    </ParallaxScrollView>
+          <TouchableOpacity
+            style={[
+              styles.startButton,
+              selectedTeams.length < 2 && styles.startButtonDisabled
+            ]}
+            onPress={handleStartGame}
+            disabled={selectedTeams.length < 2}
+            activeOpacity={0.9}
+          >
+            <Text style={styles.startButtonText}>
+              Start spill med {selectedTeams.length} lag
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        {recentMatches.length > 0 && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Siste kamper</Text>
+            
+            <View style={styles.matchList}>
+              {recentMatches.map((match, index) => (
+                <View key={index} style={styles.matchCard}>
+                  <View style={styles.matchHeader}>
+                    <Text style={styles.matchDate}>{formatDate(match.date)}</Text>
+                    <Text style={styles.matchDuration}>{match.duration} min</Text>
+                  </View>
+                  
+                  <View style={styles.matchTeams}>
+                    <View style={styles.matchTeam}>
+                      <View style={[
+                        styles.matchTeamColor,
+                        { backgroundColor: ALL_TEAMS[match.winner as Team]?.color || '#666' }
+                      ]} />
+                      <Text style={styles.matchTeamName}>
+                        {ALL_TEAMS[match.winner as Team]?.name || match.winner}
+                      </Text>
+                      <Text style={styles.matchScore}>{match.winnerScore}</Text>
+                    </View>
+                    
+                    <Text style={styles.matchVs}>-</Text>
+                    
+                    <View style={styles.matchTeam}>
+                      <View style={[
+                        styles.matchTeamColor,
+                        { backgroundColor: ALL_TEAMS[match.loser as Team]?.color || '#666' }
+                      ]} />
+                      <Text style={styles.matchTeamName}>
+                        {ALL_TEAMS[match.loser as Team]?.name || match.loser}
+                      </Text>
+                      <Text style={styles.matchScore}>{match.loserScore}</Text>
+                    </View>
+                  </View>
+                </View>
+              ))}
+            </View>
+          </View>
+        )}
+      </View>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  titleContainer: {
+  container: {
+    flex: 1,
+    backgroundColor: '#f5f5f7',
+  },
+  content: {
+    padding: 20,
+    paddingBottom: 40,
+  },
+  section: {
+    marginBottom: 32,
+  },
+  sectionTitle: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#1d1d1f',
+    marginBottom: 4,
+  },
+  sectionSubtitle: {
+    fontSize: 15,
+    color: '#6e6e73',
+    marginBottom: 20,
+    fontWeight: '500',
+  },
+  teamGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+  },
+  teamCard: {
+    width: '48%',
+    height: 64,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  teamCardInactive: {
+    backgroundColor: '#e5e5ea',
+    opacity: 0.6,
+  },
+  teamCardText: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#fff',
+  },
+  teamCardTextInactive: {
+    color: '#8e8e93',
+  },
+  checkmark: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255, 255, 255, 0.3)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  checkmarkText: {
+    fontSize: 16,
+    color: '#fff',
+    fontWeight: '700',
+  },
+  startButton: {
+    width: '100%',
+    height: 56,
+    borderRadius: 14,
+    backgroundColor: '#34c759',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 20,
+    shadowColor: '#34c759',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 5,
+  },
+  startButtonDisabled: {
+    backgroundColor: '#e5e5ea',
+    shadowOpacity: 0,
+  },
+  startButtonText: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#fff',
+  },
+  matchList: {
+    gap: 12,
+  },
+  matchCard: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  matchHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  matchDate: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#1d1d1f',
+  },
+  matchDuration: {
+    fontSize: 14,
+    color: '#6e6e73',
+    fontWeight: '500',
+  },
+  matchTeams: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    justifyContent: 'space-between',
   },
-  stepContainer: {
-    gap: 8,
-    marginBottom: 8,
+  matchTeam: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
   },
-  reactLogo: {
-    height: 178,
-    width: 290,
-    bottom: 0,
-    left: 0,
-    position: 'absolute',
+  matchTeamColor: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    marginRight: 8,
+  },
+  matchTeamName: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1d1d1f',
+    flex: 1,
+  },
+  matchScore: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#1d1d1f',
+  },
+  matchVs: {
+    fontSize: 14,
+    color: '#8e8e93',
+    marginHorizontal: 12,
+    fontWeight: '600',
   },
 });
