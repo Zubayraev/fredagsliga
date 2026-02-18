@@ -28,9 +28,7 @@ export default function OmPage() {
             Kom som du er med godt humør, engasjement og en vilje til å ha det gøy!
           </Text>
           <View style={styles.highlightBox}>
-            <Text style={styles.highlightText}>
-              Respekter hverandre ❤️
-            </Text>
+            
             <Text style={styles.highlightSubtext}>
               Dette er kun for godt humør og samhold
             </Text>
